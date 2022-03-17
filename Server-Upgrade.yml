@@ -1,0 +1,60 @@
+- hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+
+  - name: Start Exampletunnel Wireguard
+    command: wg-quick up Exampletunnel
+  # Igorne error when tunnel is already up
+    ignore_errors: yes
+- hosts: inventoryexample
+  tasks:
+    - name: Test Connection
+      ping: # Just prove that Ansible can connect to the machine
+    # Update system
+    - name: Update Repos
+      apt:
+        update_cache: yes
+      become: yes
+    # Upgrade system
+    - name: Update all packages
+      apt:
+        upgrade: dist
+      become: yes
+    # Pihole Installation Check
+    - name: Check if Pihole is installed
+      ansible.builtin.stat:
+        path: "/etc/pihole"
+      register: pihole_dir
+    # Update Pihole
+    - name: Update Pihole
+      command: pihole -up
+      when: pihole_dir.stat.exists
+    # Update Pihole List
+    - name: Update Pihole Blocklist
+      command: pihole -g
+      when: pihole_dir.stat.exists
+    # Restart required?
+    - name: Check if reboot is needed
+      stat: path=/var/run/reboot-required
+      register: check_reboot
+    # Ends playbook if the file DOES NOT exist
+    - name: No Reboot Required
+      meta: end_host
+      when: not check_reboot.stat.exists
+    #Initate system restart
+    - name: Reboot system
+      reboot:
+        msg: "Reboot initiated by Ansible due to system updates"
+        pre_reboot_delay: 0
+        post_reboot_delay: 120
+        reboot_timeout: 600
+      become: yes
+
+- name: Stop Exampletunnel Wireguard VPN
+  hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+  - name: Stop Exampletunnel Wireguard
+    command: wg-quick down Exampletunnel
